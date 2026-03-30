@@ -11,16 +11,15 @@
     <div v-if="emptyHint" class="ktg-empty">
       <n-empty description="尚无三元组，可在「叙事与知识」中填写或由 kg_upsert_fact 写入" size="small" />
     </div>
-    <div ref="containerRef" class="ktg-canvas" />
+    <GraphChart v-else :nodes="graphData.nodes" :links="graphData.links" height="100%" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { Network } from 'vis-network'
-import { DataSet } from 'vis-data'
-import 'vis-network/styles/vis-network.css'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { bookApi } from '../api/book'
+import GraphChart from './charts/GraphChart.vue'
+import { convertGraph, type VisNode, type VisEdge, type EChartsGraphData } from '../utils/visToEcharts'
 
 const props = defineProps<{ slug: string }>()
 
@@ -33,11 +32,9 @@ interface Fact {
   note?: string
 }
 
-const containerRef = ref<HTMLElement | null>(null)
 const loading = ref(false)
 const facts = ref<Fact[]>([])
-
-let network: Network | null = null
+const graphData = ref<EChartsGraphData>({ nodes: [], links: [] })
 
 const emptyHint = computed(() => facts.value.length === 0 && !loading.value)
 
@@ -56,8 +53,8 @@ const buildVisData = () => {
   labelToId.clear()
   nextN = 0
   const nodeSeen = new Set<string>()
-  const nodes: Array<Record<string, unknown>> = []
-  const edges: Array<Record<string, unknown>> = []
+  const nodes: VisNode[] = []
+  const edges: VisEdge[] = []
 
   for (const f of facts.value) {
     const sid = entityId(f.subject)
@@ -98,34 +95,12 @@ const buildVisData = () => {
     })
   }
 
-  return {
-    nodes: new DataSet(nodes),
-    edges: new DataSet(edges),
-  }
+  return convertGraph(nodes, edges)
 }
 
 const redraw = async () => {
   await nextTick()
-  if (!containerRef.value) return
-  const { nodes, edges } = buildVisData()
-  const data = { nodes, edges }
-  const options = {
-    physics: { stabilization: { iterations: 160 } },
-    edges: { smooth: false },
-    nodes: {
-      shape: 'box',
-      margin: { top: 6, right: 8, bottom: 6, left: 8 },
-      borderWidth: 2,
-    },
-    interaction: { hover: true, multiselect: false },
-  }
-  if (network) {
-    network.setData(data)
-    network.stabilize()
-    network.fit({ animation: false })
-  } else {
-    network = new Network(containerRef.value, data, options)
-  }
+  graphData.value = buildVisData()
 }
 
 const reload = async () => {
@@ -142,8 +117,6 @@ const reload = async () => {
 watch(
   () => props.slug,
   () => {
-    network?.destroy()
-    network = null
     void reload()
   }
 )
@@ -151,11 +124,6 @@ watch(
 onMounted(async () => {
   await nextTick()
   await reload()
-})
-
-onUnmounted(() => {
-  network?.destroy()
-  network = null
 })
 </script>
 
@@ -201,6 +169,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 260px;
   width: 100%;
+  display: flex;
 }
 
 .ktg-empty {
