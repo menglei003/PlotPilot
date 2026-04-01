@@ -197,7 +197,6 @@ const props = withDefaults(defineProps<WorkAreaProps>(), {
 
 const emit = defineEmits<{
   setRightPanel: [panel: string]
-  openPlanModal: []
   startWrite: []
   chapterUpdated: []
 }>()

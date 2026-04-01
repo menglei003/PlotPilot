@@ -25,7 +25,6 @@
                   :chapters="chapters"
                   :current-chapter-id="currentChapterId"
                   @set-right-panel="setRightPanel"
-                  @open-plan-modal="openPlanModal"
                   @start-write="openWorkflowGenerate"
                   @chapter-updated="handleChapterUpdated"
                 />
@@ -39,46 +38,6 @@
         </n-split>
       </div>
     </n-spin>
-
-    <n-modal
-      v-model:show="showPlanModal"
-      preset="card"
-      style="width: min(460px, 94vw)"
-      :mask-closable="false"
-      title="结构规划"
-    >
-      <n-space vertical :size="16">
-        <n-text depth="3">
-          首次生成适用于尚无圣经与大纲；「再规划」会结合滚动摘要、编务远期摘要与已完成章节信息，修订 bible 与分章大纲。
-        </n-text>
-        <n-radio-group v-model:value="planMode">
-          <n-space vertical :size="8">
-            <n-radio value="initial">首次生成圣经与分章大纲</n-radio>
-            <n-radio value="revise" :disabled="!hasStructure">基于进度再规划（需已有 bible / outline）</n-radio>
-          </n-space>
-        </n-radio-group>
-        <n-checkbox v-model:checked="planDryRun">预演（dry-run，不调用模型）</n-checkbox>
-        <n-space justify="end" :size="10">
-          <n-button @click="showPlanModal = false">取消</n-button>
-          <n-button type="primary" @click="confirmPlan">开始</n-button>
-        </n-space>
-      </n-space>
-    </n-modal>
-
-    <n-modal
-      v-model:show="showTaskModal"
-      preset="card"
-      style="width: min(420px, 92vw)"
-      :mask-closable="false"
-      :segmented="{ content: true }"
-      title="任务进行中"
-    >
-      <n-space vertical :size="16">
-        <n-progress type="line" :percentage="taskProgress" :processing="taskProgress < 100" :height="10" />
-        <n-text>{{ taskMessage }}</n-text>
-        <n-button size="small" secondary @click="cancelRunningTask">终止任务</n-button>
-      </n-space>
-    </n-modal>
 
     <GenerateChapterWorkflowModal
       v-model:show="showWorkflowModal"
@@ -128,23 +87,10 @@ const {
   rightPanel,
   biblePanelKey,
   pageLoading,
-  showPlanModal,
-  planMode,
-  planDryRun,
   bookMeta,
-  showTaskModal,
-  taskProgress,
-  taskMessage,
   currentJobId,
-  hasStructure,
   setRightPanel,
-  onMessagesUpdated,
   loadDesk,
-  openPlanModal,
-  confirmPlan,
-  startPolling,
-  cancelRunningTask,
-  stopPolling,
   goHome,
   goToChapter,
 } = useWorkbench({ slug, chatAreaRef: workAreaRef })
