@@ -245,6 +245,34 @@ def get_consistency_checker() -> ConsistencyChecker:
     return ConsistencyChecker()
 
 
+def get_embedding_service():
+    """获取 Embedding 服务（需要 QDRANT_ENABLED=true 且 OPENAI_API_KEY）。
+
+    两个条件都满足时返回 OpenAIEmbeddingService，否则静默返回 None。
+    """
+    if os.getenv("QDRANT_ENABLED", "").lower() != "true":
+        return None
+    if not os.getenv("OPENAI_API_KEY"):
+        logger.warning("QDRANT_ENABLED=true 但 OPENAI_API_KEY 未设置，向量检索已禁用")
+        return None
+    from infrastructure.ai.openai_embedding_service import OpenAIEmbeddingService
+    try:
+        return OpenAIEmbeddingService()
+    except Exception as e:
+        logger.warning("EmbeddingService 初始化失败: %s", e)
+        return None
+
+
+def get_chapter_indexing_service():
+    """获取章节索引服务（依赖 Qdrant + Embedding，任一不可用则返回 None）。"""
+    vs = get_vector_store()
+    es = get_embedding_service()
+    if vs is None or es is None:
+        return None
+    from application.services.chapter_indexing_service import ChapterIndexingService
+    return ChapterIndexingService(vs, es)
+
+
 def get_vector_store() -> Optional["QdrantVectorStore"]:
     """获取向量存储
 
@@ -301,6 +329,8 @@ def get_context_builder() -> ContextBuilder:
         novel_repository=get_novel_repository(),
         chapter_repository=get_chapter_repository(),
         plot_arc_repository=get_plot_arc_repository(),
+        embedding_service=get_embedding_service(),
+        foreshadowing_repository=get_foreshadowing_repository(),
     )
 
 
@@ -319,6 +349,9 @@ def get_auto_workflow() -> AutoNovelGenerationWorkflow:
         llm_service = MockProvider()
         logger.warning("No API key found, using MockProvider for workflow")
 
+    from application.services.conflict_detection_service import ConflictDetectionService
+    from application.services.cliche_scanner import ClicheScanner
+
     return AutoNovelGenerationWorkflow(
         context_builder=get_context_builder(),
         consistency_checker=get_consistency_checker(),
@@ -328,7 +361,10 @@ def get_auto_workflow() -> AutoNovelGenerationWorkflow:
         state_extractor=get_state_extractor(),
         state_updater=get_state_updater(),
         bible_repository=get_bible_repository(),
-        foreshadowing_repository=get_foreshadowing_repository()
+        foreshadowing_repository=get_foreshadowing_repository(),
+        voice_fingerprint_service=get_voice_fingerprint_service(),
+        conflict_detection_service=ConflictDetectionService(),
+        cliche_scanner=ClicheScanner(),
     )
 
 

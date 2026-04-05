@@ -9,6 +9,7 @@ from domain.novel.repositories.plot_arc_repository import PlotArcRepository
 from domain.novel.value_objects.novel_id import NovelId
 from domain.ai.services.vector_store import VectorStore
 from domain.ai.services.embedding_service import EmbeddingService
+from domain.novel.repositories.foreshadowing_repository import ForeshadowingRepository
 from application.ai.vector_retrieval_facade import VectorRetrievalFacade
 
 if TYPE_CHECKING:
@@ -64,6 +65,7 @@ class ContextBuilder:
         chapter_repository: ChapterRepository,
         plot_arc_repository: Optional[PlotArcRepository] = None,
         embedding_service: Optional[EmbeddingService] = None,
+        foreshadowing_repository: Optional[ForeshadowingRepository] = None,
     ):
         self.bible_service = bible_service
         self.storyline_manager = storyline_manager
@@ -73,6 +75,7 @@ class ContextBuilder:
         self.chapter_repository = chapter_repository
         self.plot_arc_repository = plot_arc_repository
         self.embedding_service = embedding_service
+        self.foreshadowing_repository = foreshadowing_repository
 
         # 创建向量检索门面（如果两个服务都可用）
         self.vector_facade = None
@@ -309,6 +312,23 @@ class ContextBuilder:
                     parts.append(f"- …and {len(bible_dto.timeline_notes) - self.MAX_TIMELINE_NOTES} more notes")
         except Exception as e:
             logger.warning(f"Failed to load Bible timeline notes: {e}")
+
+        # 待兑现伏笔（提醒模型呼应已埋下的线索）
+        if self.foreshadowing_repository:
+            try:
+                reg = self.foreshadowing_repository.get_by_novel_id(NovelId(novel_id))
+                if reg:
+                    pending = [e for e in reg.subtext_entries if e.status == "pending"]
+                    if pending:
+                        parts.append("\nPending foreshadows (planted but not yet resolved — weave in or keep consistent):")
+                        for entry in pending[:5]:
+                            parts.append(
+                                f"- Ch{entry.chapter} [{entry.character_id}]: {entry.hidden_clue}"
+                            )
+                        if len(pending) > 5:
+                            parts.append(f"- …and {len(pending) - 5} more pending")
+            except Exception as e:
+                logger.warning("Failed to load foreshadowing entries: %s", e)
 
         context = "\n".join(parts)
 

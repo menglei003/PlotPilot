@@ -200,6 +200,19 @@
                 />
               </n-form-item>
 
+              <n-form-item label="场记分析" label-placement="left" label-width="80" :show-feedback="false">
+                <n-space align="center" :size="8">
+                  <n-switch v-model:value="useSceneDirector" :disabled="generating" size="small" />
+                  <n-text depth="3" style="font-size: 12px">
+                    生成前分析场景（精准过滤出场角色/地点，提升上下文质量）
+                  </n-text>
+                </n-space>
+              </n-form-item>
+
+              <n-alert v-if="sceneDirectorError" type="warning" :show-icon="true" style="font-size: 12px">
+                场记分析失败（不影响生成）：{{ sceneDirectorError }}
+              </n-alert>
+
               <n-button
                 type="primary"
                 @click="handleStartGenerate"
@@ -208,7 +221,7 @@
                 size="medium"
                 block
               >
-                {{ generating ? '生成中...' : '开始生成' }}
+                {{ generating ? (analyzingScene ? '分析场景中...' : '生成中...') : '开始生成' }}
               </n-button>
             </n-space>
           </n-card>
@@ -252,6 +265,7 @@ import {
   workflowApi,
   consumeGenerateChapterStream,
   consumeHostedWriteStream,
+  analyzeScene,
 } from '../../api/workflow'
 import { chapterApi } from '../../api/chapter'
 
@@ -304,6 +318,11 @@ const loading = computed(() => props.chapterLoading)
 const saving = ref(false)
 const reviewing = ref(false)
 const reviewResult = ref<{ score: number; suggestions: string[] } | null>(null)
+
+// Scene Director 开关
+const useSceneDirector = ref(false)
+const analyzingScene = ref(false)
+const sceneDirectorError = ref('')
 
 // AbortController：点「停止」时真正取消后端 SSE 流
 const generateAbortCtrl = ref<AbortController | null>(null)
@@ -389,16 +408,33 @@ const handleStartGenerate = async () => {
   const targetChapterNumber = currentChapter.value.number
   generatingChapterId.value = targetChapterId
   generatedContent.value = ''
+  sceneDirectorError.value = ''
 
   const ctrl = new AbortController()
   generateAbortCtrl.value = ctrl
+
+  // 可选：Scene Director 分析（失败不阻断生成）
+  let sceneDirectorResult: Record<string, unknown> | undefined
+  if (useSceneDirector.value) {
+    analyzingScene.value = true
+    try {
+      const outline = generateOutline.value || `第${targetChapterNumber}章：承接前情，推进主线`
+      const analysis = await analyzeScene(props.slug, targetChapterNumber, outline)
+      sceneDirectorResult = analysis as Record<string, unknown>
+    } catch (e: unknown) {
+      sceneDirectorError.value = e instanceof Error ? e.message : '分析失败'
+    } finally {
+      analyzingScene.value = false
+    }
+  }
 
   try {
     await consumeGenerateChapterStream(
       props.slug,
       {
         chapter_number: targetChapterNumber,
-        outline: generateOutline.value || `第${targetChapterNumber}章：承接前情，推进主线`
+        outline: generateOutline.value || `第${targetChapterNumber}章：承接前情，推进主线`,
+        scene_director_result: sceneDirectorResult,
       },
       {
         signal: ctrl.signal,

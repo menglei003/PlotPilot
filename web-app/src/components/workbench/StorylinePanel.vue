@@ -108,15 +108,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
-import axios from 'axios'
-
-interface Storyline {
-  id: string
-  storyline_type: string
-  status: string
-  estimated_chapter_start: number
-  estimated_chapter_end: number
-}
+import { workflowApi } from '../../api/workflow'
+import type { StorylineDTO } from '../../api/workflow'
 
 interface Props {
   slug: string
@@ -127,7 +120,7 @@ const message = useMessage()
 
 const loading = ref(false)
 const saving = ref(false)
-const storylines = ref<Storyline[]>([])
+const storylines = ref<StorylineDTO[]>([])
 const showCreateModal = ref(false)
 
 const formData = ref({
@@ -191,10 +184,9 @@ const getStatusColor = (status: string) => {
 const loadStorylines = async () => {
   loading.value = true
   try {
-    const response = await axios.get(`/api/v1/novels/${props.slug}/storylines`)
-    storylines.value = response.data
+    storylines.value = await workflowApi.getStorylines(props.slug)
   } catch (error: any) {
-    message.error(error.response?.data?.detail || '加载故事线失败')
+    message.error(error?.detail || '加载故事线失败')
   } finally {
     loading.value = false
   }
@@ -208,22 +200,22 @@ const handleSubmit = async () => {
 
   saving.value = true
   try {
-    await axios.post(`/api/v1/novels/${props.slug}/storylines`, formData.value)
+    await workflowApi.createStoryline(props.slug, formData.value)
     message.success('故事线创建成功')
     showCreateModal.value = false
     await loadStorylines()
   } catch (error: any) {
-    message.error(error.response?.data?.detail || '创建故事线失败')
+    message.error(error?.detail || '创建故事线失败')
   } finally {
     saving.value = false
   }
 }
 
-const editStoryline = (storyline: Storyline) => {
+const editStoryline = (_storyline: StorylineDTO) => {
   message.info('编辑功能开发中')
 }
 
-const deleteStoryline = async (id: string) => {
+const deleteStoryline = async (_id: string) => {
   message.info('删除功能开发中')
 }
 

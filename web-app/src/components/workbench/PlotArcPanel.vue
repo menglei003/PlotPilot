@@ -158,14 +158,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
-import axios from 'axios'
-
-interface PlotPoint {
-  chapter_number: number
-  point_type: string
-  tension: number
-  description: string
-}
+import { workflowApi } from '../../api/workflow'
+import type { PlotPointDTO } from '../../api/workflow'
 
 interface Props {
   slug: string
@@ -176,7 +170,7 @@ const message = useMessage()
 
 const loading = ref(false)
 const saving = ref(false)
-const plotPoints = ref<PlotPoint[]>([])
+const plotPoints = ref<PlotPointDTO[]>([])
 const showAddPointModal = ref(false)
 const editingIndex = ref(-1)
 
@@ -284,13 +278,13 @@ const getTensionTypeColor = (tension: number) => {
 const loadPlotArc = async () => {
   loading.value = true
   try {
-    const response = await axios.get(`/api/v1/novels/${props.slug}/plot-arc`)
-    plotPoints.value = response.data.key_points || []
+    const arc = await workflowApi.getPlotArc(props.slug)
+    plotPoints.value = arc.key_points || []
   } catch (error: any) {
-    if (error.response?.status === 404) {
+    if (error?.status === 404 || error?.response?.status === 404) {
       plotPoints.value = []
     } else {
-      message.error(error.response?.data?.detail || '加载情节弧线失败')
+      message.error(error?.detail || '加载情节弧线失败')
     }
   } finally {
     loading.value = false
@@ -338,12 +332,10 @@ const savePlotArc = async () => {
 
   saving.value = true
   try {
-    await axios.post(`/api/v1/novels/${props.slug}/plot-arc`, {
-      key_points: plotPoints.value
-    })
+    await workflowApi.createPlotArc(props.slug, { key_points: plotPoints.value })
     message.success('情节弧线保存成功')
   } catch (error: any) {
-    message.error(error.response?.data?.detail || '保存情节弧线失败')
+    message.error(error?.detail || '保存情节弧线失败')
   } finally {
     saving.value = false
   }

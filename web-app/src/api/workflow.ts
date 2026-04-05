@@ -5,9 +5,56 @@
 import { apiClient } from './config'
 import type { JobCreateResponse, JobStatusResponse } from '../types/api'
 
+export interface StorylineDTO {
+  id: string
+  storyline_type: string
+  status: string
+  estimated_chapter_start: number
+  estimated_chapter_end: number
+}
+
+export interface PlotPointDTO {
+  chapter_number: number
+  point_type: string
+  tension: number
+  description: string
+}
+
+export interface PlotArcDTO {
+  id: string
+  novel_id: string
+  key_points: PlotPointDTO[]
+}
+
 export interface GenerateChapterWithContextPayload {
   chapter_number: number
   outline: string
+  scene_director_result?: Record<string, unknown>
+}
+
+export interface SceneDirectorAnalysis {
+  chapter_number: number
+  outline: string
+  pov_character?: string
+  location?: string
+  entities?: string[]
+  tone?: string
+  [key: string]: unknown
+}
+
+/**
+ * POST /api/v1/novels/{novel_id}/scene-director/analyze
+ * 分析章节大纲，提取场记信息（角色、地点、基调），用于过滤生成上下文。
+ */
+export async function analyzeScene(
+  novelId: string,
+  chapterNumber: number,
+  outline: string
+): Promise<SceneDirectorAnalysis> {
+  return apiClient.post<SceneDirectorAnalysis>(
+    `/novels/${novelId}/scene-director/analyze`,
+    { chapter_number: chapterNumber, outline }
+  ) as unknown as Promise<SceneDirectorAnalysis>
 }
 
 /** 与 `interfaces/api/v1/generation.py` GenerateChapterResponse 对齐 */
@@ -196,7 +243,7 @@ export const workflowApi = {
       `/novels/${novelId}/generate-chapter`,
       data,
       { timeout: 180_000 }
-    ) as Promise<GenerateChapterWorkflowResponse>,
+    ) as unknown as Promise<GenerateChapterWorkflowResponse>,
 
   /** GET /api/v1/novels/{novel_id}/consistency-report */
   getConsistencyReport: (novelId: string, chapter?: number) =>
@@ -206,11 +253,19 @@ export const workflowApi = {
 
   /** GET /api/v1/novels/{novel_id}/storylines */
   getStorylines: (novelId: string) =>
-    apiClient.get<unknown>(`/novels/${novelId}/storylines`) as Promise<unknown>,
+    apiClient.get<StorylineDTO[]>(`/novels/${novelId}/storylines`) as unknown as Promise<StorylineDTO[]>,
+
+  /** POST /api/v1/novels/{novel_id}/storylines */
+  createStoryline: (novelId: string, data: { storyline_type: string; estimated_chapter_start: number; estimated_chapter_end: number }) =>
+    apiClient.post<StorylineDTO>(`/novels/${novelId}/storylines`, data) as unknown as Promise<StorylineDTO>,
+
+  /** GET /api/v1/novels/{novel_id}/plot-arc */
+  getPlotArc: (novelId: string) =>
+    apiClient.get<PlotArcDTO>(`/novels/${novelId}/plot-arc`) as unknown as Promise<PlotArcDTO>,
 
   /** POST /api/v1/novels/{novel_id}/plot-arc（body 含 key_points 等，见后端 CreatePlotArcRequest） */
-  createPlotArc: (novelId: string, data: Record<string, unknown>) =>
-    apiClient.post<unknown>(`/novels/${novelId}/plot-arc`, data) as Promise<unknown>,
+  createPlotArc: (novelId: string, data: { key_points: PlotPointDTO[] }) =>
+    apiClient.post<PlotArcDTO>(`/novels/${novelId}/plot-arc`, data) as unknown as Promise<PlotArcDTO>,
 
   /**
    * 以下 Job 路由 **后端尚未实现**（`interfaces` 无 `/jobs`），调用会 404。
@@ -222,7 +277,7 @@ export const workflowApi = {
     apiClient.post<JobCreateResponse>(`/novels/${novelId}/jobs/plan`, {
       dry_run: dryRun,
       mode,
-    }) as Promise<JobCreateResponse>,
+    }) as unknown as Promise<JobCreateResponse>,
 
   /** POST /api/v1/novels/{novel_id}/jobs/write */
   startWriteJob: (
@@ -237,26 +292,26 @@ export const workflowApi = {
       to_chapter: to,
       dry_run: dryRun,
       continuity,
-    }) as Promise<JobCreateResponse>,
+    }) as unknown as Promise<JobCreateResponse>,
 
   /** POST /api/v1/novels/{novel_id}/jobs/run */
   startRunJob: (novelId: string, dryRun = false, continuity = false) =>
     apiClient.post<JobCreateResponse>(`/novels/${novelId}/jobs/run`, {
       dry_run: dryRun,
       continuity,
-    }) as Promise<JobCreateResponse>,
+    }) as unknown as Promise<JobCreateResponse>,
 
   /** POST /api/v1/novels/{novel_id}/jobs/export */
   exportBook: (novelId: string) =>
-    apiClient.post<unknown>(`/novels/${novelId}/jobs/export`, {}) as Promise<unknown>,
+    apiClient.post<unknown>(`/novels/${novelId}/jobs/export`, {}) as unknown as Promise<unknown>,
 
   /** GET /api/v1/jobs/{job_id} */
   getJobStatus: (jobId: string) =>
-    apiClient.get<JobStatusResponse>(`/jobs/${jobId}`) as Promise<JobStatusResponse>,
+    apiClient.get<JobStatusResponse>(`/jobs/${jobId}`) as unknown as Promise<JobStatusResponse>,
 
   /** POST /api/v1/jobs/{job_id}/cancel */
   cancelJob: (jobId: string) =>
-    apiClient.post<{ ok: boolean }>(`/jobs/${jobId}/cancel`, {}) as Promise<{ ok: boolean }>,
+    apiClient.post<{ ok: boolean }>(`/jobs/${jobId}/cancel`, {}) as unknown as Promise<{ ok: boolean }>,
 
   // ============================================================================
   // 新增：大纲规划、章节审稿、续写大纲

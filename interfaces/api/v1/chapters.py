@@ -1,5 +1,6 @@
 """Chapter API 路由"""
-from fastapi import APIRouter, Depends, HTTPException, Path
+import logging
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path
 from typing import List, Literal
 from pydantic import BaseModel, Field
 
@@ -9,8 +10,25 @@ from application.dtos.chapter_dto import ChapterDTO
 from application.dtos.novel_dto import NovelDTO
 from application.dtos.chapter_review_dto import ChapterReviewDTO
 from application.dtos.chapter_structure_dto import ChapterStructureDTO
-from interfaces.api.dependencies import get_chapter_service, get_novel_service
+from interfaces.api.dependencies import get_chapter_service, get_novel_service, get_chapter_indexing_service
 from domain.shared.exceptions import EntityNotFoundError
+
+logger = logging.getLogger(__name__)
+
+
+async def _try_index_chapter(novel_id: str, chapter_number: int, content: str, indexing_svc) -> None:
+    """后台异步索引章节内容，失败仅记日志不影响主流程。"""
+    if indexing_svc is None:
+        return
+    summary = content[:800].strip()
+    if not summary:
+        return
+    try:
+        await indexing_svc.ensure_collection(novel_id)
+        await indexing_svc.index_chapter_summary(novel_id, chapter_number, summary)
+        logger.debug("章节索引完成 novel=%s ch=%d", novel_id, chapter_number)
+    except Exception as e:
+        logger.warning("章节索引失败 novel=%s ch=%d: %s", novel_id, chapter_number, e)
 
 
 router = APIRouter(tags=["chapters"])
@@ -150,10 +168,12 @@ async def ensure_chapter(
 async def update_chapter(
     novel_id: str,
     request: UpdateChapterContentRequest,
+    background_tasks: BackgroundTasks,
     chapter_number: int = Path(..., gt=0, description="章节编号"),
-    service: ChapterService = Depends(get_chapter_service)
+    service: ChapterService = Depends(get_chapter_service),
+    indexing_svc=Depends(get_chapter_indexing_service),
 ):
-    """更新章节内容
+    """更新章节内容，保存成功后后台触发向量索引（QDRANT_ENABLED 未开启时静默跳过）。
 
     Args:
         novel_id: 小说 ID
@@ -168,13 +188,18 @@ async def update_chapter(
         HTTPException: 如果章节不存在
     """
     try:
-        return service.update_chapter_by_novel_and_number(
+        chapter = service.update_chapter_by_novel_and_number(
             novel_id,
             chapter_number,
             request.content
         )
     except EntityNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    background_tasks.add_task(
+        _try_index_chapter, novel_id, chapter_number, request.content, indexing_svc
+    )
+    return chapter
 
 
 @router.get("/{novel_id}/chapters/{chapter_number}/review", response_model=ChapterReviewResponse)
