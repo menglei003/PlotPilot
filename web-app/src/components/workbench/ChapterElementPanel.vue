@@ -253,6 +253,17 @@ const doDelete = async (elem: ChapterElementDTO) => {
   }
 }
 
+// 换书时重置并重新解析
+watch(() => props.slug, async (slug) => {
+  if (slug) {
+    elements.value = []
+    storyNodeId.value = null
+    storyNodeNotFound.value = false
+    await resolveStoryNode()
+    await loadElements()
+  }
+})
+
 // 监听章节变化
 watch(() => props.currentChapterNumber, async () => {
   await resolveStoryNode()

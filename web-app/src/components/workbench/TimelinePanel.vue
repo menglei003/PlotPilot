@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { bibleApi } from '../../api/bible'
 import type { TimelineNoteDTO } from '../../api/bible'
@@ -200,6 +200,10 @@ const saveTimeline = async () => {
     message.error(error.response?.data?.detail || '保存时间线失败')
   }
 }
+
+watch(() => props.slug, (slug) => {
+  if (slug) loadTimeline()
+})
 
 onMounted(() => {
   loadTimeline()

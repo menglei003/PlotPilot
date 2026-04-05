@@ -17,7 +17,7 @@
       </n-space>
     </header>
 
-    <n-scrollbar class="panel-content">
+    <div class="panel-content">
       <n-spin :show="loading">
         <div class="worldbuilding-form">
           <!-- 1. 核心法则与底层逻辑 -->
@@ -265,12 +265,12 @@
           </n-alert>
         </div>
       </n-spin>
-    </n-scrollbar>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { worldbuildingApi } from '@/api/worldbuilding'
 
@@ -347,6 +347,10 @@ const save = async () => {
   }
 }
 
+watch(() => props.slug, (slug) => {
+  if (slug) loadWorldbuilding()
+})
+
 onMounted(() => {
   loadWorldbuilding()
 })
@@ -404,6 +408,7 @@ onMounted(() => {
 .panel-content {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .worldbuilding-form {
