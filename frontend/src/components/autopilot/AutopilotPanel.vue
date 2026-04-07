@@ -133,7 +133,7 @@ const message = useMessage()
 const status = ref(null)
 const toggling = ref(false)
 const showStartModal = ref(false)
-const startConfig = ref({ max_auto_chapters: 9999 })  // 保护上限，默认几乎无限制，由 target_chapters 控制
+const startConfig = ref({ max_auto_chapters: 50 })  // 默认托管章节数
 /** HTTP/1.1 下同域长连接约 6 路；避免与日志 /stream 双开占满导致其它 API 挂起 */
 let statusPollTimer = null
 /** novel_id 在库中不存在(404)时不再轮询，避免旧标签页/错 slug 刷屏访问日志 */
